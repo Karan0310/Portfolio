@@ -1,0 +1,198 @@
+---
+title: "Fitness Tracker Report"
+author: "Karan Saxena"
+date: "01/05/2021"
+output: html_document
+---
+
+
+## Goal of this project
+This project will identify trends in fitness tracker usage and recommend growth opportunities through specific marketing efforts of Leaf, a Bellabeat product. Findings will be presented to Cheif Creative Office, Founder and Marketing Analytics Team.
+ 
+ 
+## Deliverables
+ 1. A clear summary of the business task
+ 2. A description of all data sources used
+ 3. Documentation of any cleaning or manipulation of data
+ 4. A summary of analysis
+ 5. Supporting visualizations and key findings
+ 6. Top high-level content recommendations based on your analysis
+ 
+## Data Sources
+ Data source provided by the company 
+ * Data from Mobius Kaggle file. Access data file [here](https://www.kaggle.com/arashnic/fitbit)
+ * CSV files of data contains 30 observations from 2016-03-12 to 2016-05-12.
+
+```## Prepare environment ###
+Install tiyverse, ggplot2 and dplyr packages.
+ 
+ ```{r}
+ install.packages('tidyverse')
+ library(tidyverse)
+ 
+ install.packages('ggplot2')
+ library(ggplot2)
+ 
+ install.packages('dplyr')
+ library(dplyr)
+ 
+
+```
+### Downloaded datasets from Kaggle and uploaded into RStudio
+Data files saved on GoogleDrive in project folder. The Leaf product tracks activity, sleep and steps so I uploaded 4 files.
+ * dailyActivity_merged
+ * dailySteps_merged
+ * minuteSleep_merged
+ * sleepDay_merged
+ 
+ ```{r}
+ daily_activity<-read.csv('C:/Users/Karan/OneDrive/Documents/dailyActivity_merged.csv')
+ daily_sleep<-read.csv('C:/Users/Karan/OneDrive/Documents/sleepDay_merged.csv')
+ daily_steps<-read.csv('C:/Users/Karan/OneDrive/Documents/dailySteps_merged.csv')
+ minutes_sleep<-read.csv('C:/Users/Karan/OneDrive/Documents/minuteSleep_merged.csv')
+ ```
+ ### Explore data sets to determine columns and data type. 
+ ```{r}
+ head(daily_activity)
+ colnames(daily_activity)
+ 
+ head(minutes_sleep)
+ colnames(minutes_sleep)
+ str(minutes_sleep)
+ 
+ head(daily_sleep)
+ colnames(daily_sleep)
+ ```
+ 
+ 
+Check data in daily_steps data frame to see if there are unexpected large or small values.
+ ```{r}
+ max(daily_steps$StepTotal)
+ min(daily_steps$StepTotal)
+ 
+ max(daily_sleep$TotalMinutesAsleep)
+ min(daily_sleep$TotalMinutesAsleep)
+ ```
+ The minimum time for sleep had some value, but the minimum steps recorded was 0 so I determined how many observations had 0 daily steps.
+ ```{r}
+ daily_steps %>% 
+   count(daily_steps$StepTotal == 0) #77 observations had 0 steps
+ ```
+ 
+ 
+ Created data frame with summary of the daily_steps.csv file with 0 values removed. The summary includes sum of all steps, average steps and the number of step entries per Id.
+ 
+ I assigned a rating of the activity levels in a new column called step_level. The levels of the activity rating are Very Active (10,000+ steps), Moderate Active (5,000-9,999 steps), Low Active (1,000-4,999 steps) and Inactive (below 1,000 steps).   
+ ```{r}
+ summary_filtered_steps <- daily_steps %>% 
+   filter(StepTotal > 0) %>% 
+   group_by(Id) %>% 
+   summarize(sum_steps = sum(StepTotal), avg_steps = mean(StepTotal), number_step_entries = length(StepTotal))
+   summary_filtered_steps$step_level = case_when(
+       summary_filtered_steps$avg_steps >= 10000 ~ "Very Active",
+       summary_filtered_steps$avg_steps >= 5000 ~ "Mildly Active",
+       summary_filtered_steps$avg_steps >= 1000 ~ "Low Active",
+       summary_filtered_steps$avg_steps < 1000 ~ "Inactive"
+     )
+ 
+ head(summary_filtered_steps)
+ 
+ ```
+## Quick plot of step summary data
+  Scatter plot to see if there is a correlation of number of step entries and average steps. All users with   10,000 or more steps (Very Active) logged their entries more than 20 times. Users with at least 5,000 average steps had more entries than users with less than 5,000 steps. 
+  ```{r}
+ ggplot(data = summary_filtered_steps) +
+   geom_point(mapping = aes(x=avg_steps, y=number_step_entries, color = step_level))+
+   facet_wrap(~step_level)
+ 
+ ```
+ 
+ Summary of daily_sleep data frame using head() function to review data.
+ ```{r}
+ head(daily_sleep)
+ ```
+ 
+ Created data frame with summary of the daily_sleep. The summary includes sum of all minutes asleep, average sleep minutes and the number of sleep entries per Id.
+ 
+ I assigned a rating of the sleep levels in a new column called sleep_level based on the minutes of sleep. The levels of the sleep rating are Well Rested (480 and above minutes), Moderately Rested (360-479 minutes), Poorly Rested (240-359 minutes) and Not Rested (below 240 minutes).   
+ ```{r}
+ summary_sleep <- daily_sleep %>% 
+   group_by(Id) %>% 
+   summarize(sum_sleep_mins = sum(TotalMinutesAsleep), avg_sleep_mins = mean(TotalMinutesAsleep), number_sleep_entries = length(TotalMinutesAsleep)) 
+ 
+ summary_sleep$sleep_level = case_when(
+     summary_sleep$avg_sleep_mins >= 480 ~ "Well Rested",
+     summary_sleep$avg_sleep_mins >= 360 ~ "Moderately Rested",
+     summary_sleep$avg_sleep_mins >= 240 ~ "Poorly Rested",
+     summary_sleep$avg_sleep_mins < 240 ~ "Not Rested"
+ )
+ 
+ head(summary_sleep)
+ ```
+ 
+### Quick plot of sleep summary data
+ Plot to see if there is a relationship between number of entries and average minutes of sleep. Those users with more than 10 entries had more minutes of sleep on average.
+ ```{r}
+ ggplot(data= summary_sleep)+
+   geom_smooth(mapping = aes(x = number_sleep_entries, y = avg_sleep_mins))
+ 
+ ```
+ 
+
+### Created new data frame by merging Sleep summary data with Steps summary data by the common field "Id".
+ ```{r}
+ sleep_steps <- merge(summary_sleep, summary_filtered_steps, by = 'Id')
+ head(sleep_steps)
+ 
+ ```
+ 
+ 
+## Visualizations of summary data
+The bar charts shows that the biggest group of users are moderately rested and moderately active.
+ ```{r}
+ ggplot(data = sleep_steps) +
+   geom_bar(mapping = aes(x=sleep_level, fill=step_level))+
+   labs(title='Sleep Level vs Step Level')
+ ```
+ 
+ ```{r}
+ ggplot(data = sleep_steps) +
+   geom_bar(mapping = aes(x=step_level, fill=sleep_level))+
+   labs(title='Step Level vs Sleep Level')
+ ```
+ 
+ 
+ Plot to compare Average Steps to Average Sleep time and vice versa. I was expecting a stong positive coorelation between step and sleep, but that was not the case. This graph shows very little coorelation between the two factors. Higher minutes of sleep did not mean higher m=number of steps.
+ ```{r}
+ ggplot(data = sleep_steps) +
+   geom_line(mapping = aes(x=avg_sleep_mins, avg_steps))+
+   geom_smooth(mapping = aes(x=avg_sleep_mins, avg_steps))+
+   labs(title='Average Steps vs Average Sleep Time')
+ggplot(data=sleep_steps)+
+  geom_line(mapping=(aes(x=avg_sleep_mins,y=avg_steps)))+
+  labs(title='Average Sleep vs Average Steps')
+ 
+ ```
+ 
+ 
+Split into activity levels, we can identify that users with more than 10,000 steps per day slept less than 400 minutes. The users walking between 5,000-10,000 steps slept between 360-480 minutes.
+ ```{r}
+ ggplot(data = sleep_steps) +
+   geom_line(mapping = aes(x=avg_sleep_mins, avg_steps))+
+   labs(title='Steps vs Sleep based on Sleep Level')+
+   facet_wrap(~step_level)
+ ```
+ 
+## Summary
+ **Limitations of Data** 
+ Due to small sample size, data from 5 years ago and a short span of observations. We are unable to determine which products were worn to track the data.
+ 
+ 10% of the observations for steps were not tracked, but all of the users tracked sleep data which can be due to a design issue.
+ 
+ There is not a correlation between increasing steps and increasing sleep. However, the data shows the majority of users between 5,000-10,000 steps slept between 360-480 minutes per night.  
+ 
+## Reccomendations
+
+ In order to grow sales of the Leaf products, we can adjust the marketing efforts to track increase steps to a moderate level for better sleep. Since 10% of observations were missing for step tracking and all observations were complete for sleep, we need to look further into the reason for the missing values. It might be a design issue, a technical issue or an opportunity to market activity tracking as much as sleep tracking.
+
+
